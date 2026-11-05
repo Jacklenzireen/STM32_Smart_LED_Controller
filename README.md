@@ -1,19 +1,16 @@
 # STM32 Smart LED Controller
 
-## Project Overview
+This is a beginner-level embedded systems project using the **STM32F103C8T6 Blue Pill** development board.
 
-This project is a beginner-level embedded systems project using the STM32F103C8T6 Blue Pill development board.
+The goal is to develop practical STM32 programming skills using the STM32 Hardware Abstraction Layer (HAL), starting with basic LED control and gradually introducing more advanced GPIO features.
 
-The goal is to control the onboard LED connected to GPIO pin PC13 using the STM32 Hardware Abstraction Layer (HAL).
-
-The LED switches ON and OFF every 500 milliseconds.
-
-## Hardware
+# Hardware
 
 - STM32F103C8T6 Blue Pill development board
-- Onboard LED connected to PC13
+- Onboard LED connected to GPIO pin PC13
+- External push button (planned for hardware testing)
 
-## Software and Tools
+# Software and Tools
 
 - STM32CubeIDE
 - STM32CubeMX
@@ -21,11 +18,14 @@ The LED switches ON and OFF every 500 milliseconds.
 - STM32 HAL Library
 - GitHub
 
-## How It Works
+# Completed Lessons
 
-The project uses the STM32 HAL functions to control the LED.
+# Lesson 1 – Basic LED Blinking
 
-```c
+The onboard LED connected to PC13 switches ON and OFF every 500 milliseconds.
+
+Code:
+
 MX_GPIO_Init();
 
 while (1)
@@ -33,46 +33,80 @@ while (1)
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
     HAL_Delay(500);
 }
-```
 
-### Code Explanation
 
-- `MX_GPIO_Init()` initializes the GPIO configuration.
-- `while (1)` continuously repeats the instructions.
-- `HAL_GPIO_TogglePin()` switches the LED between ON and OFF.
-- `HAL_Delay(500)` creates a 500-millisecond delay.
+# Lesson 2 – Push Button Controls LED
 
-## Project Status
+Configured PA0 as a digital input with an internal pull-down resistor and PC13 as a digital output.
+
+The program reads the button state and controls the onboard LED accordingly.
+
+Code:
+
+while (1)
+{
+    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
+    {
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+    }
+    else
+    {
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+    }
+
+    HAL_Delay(50);
+}
+
+
+How it works:
+
+- `HAL_GPIO_ReadPin()` reads the button state.
+- `GPIO_PIN_SET` indicates a HIGH signal.
+- `GPIO_PIN_RESET` indicates a LOW signal.
+- `HAL_GPIO_WritePin()` controls the LED.
+- `HAL_Delay(50)` pauses for 50 milliseconds between checks.
+
+*Note:The onboard PC13 LED is active-low. Therefore, `GPIO_PIN_RESET` turns it ON.
+
+The button-control program has been successfully built in STM32CubeIDE. Physical button testing is still pending.
+
+# Project Status
 
 - [x] STM32CubeMX GPIO configuration
 - [x] PC13 configured as GPIO output
-- [x] LED blinking logic implemented using STM32 HAL
+- [x] Basic LED blinking using STM32 HAL
+- [x] PA0 configured as GPIO input with pull-down
+- [x] Push-button LED control implemented
 - [x] Project successfully built in STM32CubeIDE
+- [ ] Physical hardware testing
+- [ ] Button debouncing
 - [ ] Wokwi online simulation
-- [ ] Additional embedded systems projects
 
-## Learning Objectives
+# Learning Objectives
 
 Through this project, I am developing practical skills in:
 
 - Embedded C programming
 - STM32 microcontrollers
-- GPIO configuration
+- GPIO input and output configuration
 - STM32 HAL libraries
+- Digital signal reading
 - Hardware and software integration
+- Debugging and project version control using GitHub
 
-## Future Improvements
+# Future Improvements
 
-- Add a push button to control the LED.
-- Implement different LED blinking patterns.
-- Explore timers and interrupts.
-- Build more STM32 embedded systems projects.
+- Implement software button debouncing.
+- Add different LED blinking patterns.
+- Explore STM32 timers and interrupts.
+- Introduce more GPIO peripherals.
+- Build additional STM32 embedded systems projects.
 
-## Simulation
+# Simulation
 
-Wokwi simulation link: *Coming soon.*
+Wokwi simulation link: Coming soon.
 
-## Author
+# Author
 
 Jack Mbembele Katende
 
