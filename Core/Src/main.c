@@ -97,14 +97,25 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
-	  {
-	      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-	  }
-	  else
-	  {
-	      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-	  }
+
+	      GPIO_PinState buttonState =
+	          HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+
+	      HAL_Delay(20);
+
+	      if (buttonState == HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0))
+	      {
+	          if (buttonState == GPIO_PIN_SET)
+	          {
+	              HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+	          }
+	          else
+	          {
+	              HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+	          }
+	      }
+
+	      HAL_Delay(50);
   /* USER CODE END 3 */
 }
 }
