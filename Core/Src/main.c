@@ -87,7 +87,12 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+  GPIO_PinState lastRawButtonState = GPIO_PIN_RESET;
+  GPIO_PinState stableButtonState = GPIO_PIN_RESET;
+  GPIO_PinState ledState = GPIO_PIN_SET;
+  uint32_t lastDebounceTime = 0;
+  uint32_t debounceDelay = 20;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -97,27 +102,40 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
-	      GPIO_PinState buttonState =
+	  GPIO_PinState rawButtonState =
 	          HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
 
-	      HAL_Delay(20);
-
-	      if (buttonState == HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0))
+	      if (rawButtonState != lastRawButtonState)
 	      {
-	          if (buttonState == GPIO_PIN_SET)
+	          lastDebounceTime = HAL_GetTick();
+	          lastRawButtonState = rawButtonState;
+	      }
+
+	      if ((HAL_GetTick() - lastDebounceTime) >= debounceDelay)
+	      {
+	          if (rawButtonState != stableButtonState)
 	          {
-	              HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-	          }
-	          else
-	          {
-	              HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+	              stableButtonState = rawButtonState;
+
+	              if (stableButtonState == GPIO_PIN_SET)
+	              {
+	                  if (ledState == GPIO_PIN_SET)
+	                  {
+	                      ledState = GPIO_PIN_RESET;
+	                  }
+	                  else
+	                  {
+	                      ledState = GPIO_PIN_SET;
+	                  }
+
+	                  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, ledState);
+	              }
 	          }
 	      }
 
-	      HAL_Delay(50);
-  /* USER CODE END 3 */
+
 }
+  /* USER CODE END 3 */
 }
 
 /**
