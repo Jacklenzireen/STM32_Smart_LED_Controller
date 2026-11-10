@@ -16,6 +16,7 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
+
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
@@ -42,7 +43,14 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+volatile uint8_t buttonInterruptFlag = 0;
+volatile uint32_t lastButtonInterruptTime = 0;
 
+uint32_t buttonCheckTime = 0;
+
+GPIO_PinState ledState = GPIO_PIN_SET;
+
+#define BUTTON_DEBOUNCE_DELAY 20U
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,12 +95,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-  GPIO_PinState lastRawButtonState = GPIO_PIN_RESET;
-  GPIO_PinState stableButtonState = GPIO_PIN_RESET;
-  GPIO_PinState ledState = GPIO_PIN_SET;
-  uint32_t lastDebounceTime = 0;
-  uint32_t debounceDelay = 20;
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, ledState);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -102,42 +105,33 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  GPIO_PinState rawButtonState =
-	          HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
 
-	      if (rawButtonState != lastRawButtonState)
-	      {
-	          lastDebounceTime = HAL_GetTick();
-	          lastRawButtonState = rawButtonState;
-	      }
+	    if (buttonInterruptFlag == 1)
+	    {
+	        buttonCheckTime = HAL_GetTick();
 
-	      if ((HAL_GetTick() - lastDebounceTime) >= debounceDelay)
-	      {
-	          if (rawButtonState != stableButtonState)
-	          {
-	              stableButtonState = rawButtonState;
+	        if ((buttonCheckTime - lastButtonInterruptTime) >= BUTTON_DEBOUNCE_DELAY)
+	        {
+	            buttonInterruptFlag = 0;
 
-	              if (stableButtonState == GPIO_PIN_SET)
-	              {
-	                  if (ledState == GPIO_PIN_SET)
-	                  {
-	                      ledState = GPIO_PIN_RESET;
-	                  }
-	                  else
-	                  {
-	                      ledState = GPIO_PIN_SET;
-	                  }
+	            if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
+	            {
+	                if (ledState == GPIO_PIN_SET)
+	                {
+	                    ledState = GPIO_PIN_RESET;
+	                }
+	                else
+	                {
+	                    ledState = GPIO_PIN_SET;
+	                }
 
-	                  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, ledState);
-	              }
-	          }
-	      }
-
-
+	                HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, ledState);
+	            }
+	        }
+	    }
 }
   /* USER CODE END 3 */
 }
-
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -202,9 +196,13 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PA0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -212,7 +210,15 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == GPIO_PIN_0)
+    {
+        lastButtonInterruptTime = HAL_GetTick();
 
+        buttonInterruptFlag = 1;
+    }
+}
 /* USER CODE END 4 */
 
 /**
