@@ -52,6 +52,9 @@ uint32_t buttonCheckTime = 0;
 GPIO_PinState ledState = GPIO_PIN_SET;
 
 #define BUTTON_DEBOUNCE_DELAY 20U
+uint32_t lastLedToggleTime = 0;
+#define LED_BLINK_INTERVAL 500U
+uint8_t pwmBrightness = 25;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -122,34 +125,37 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
+      /* Process button interrupt */
+      if (buttonInterruptFlag == 1)
+      {
+          buttonCheckTime = HAL_GetTick();
 
-    /* USER CODE BEGIN 3 */
+          if ((buttonCheckTime - lastButtonInterruptTime) >= BUTTON_DEBOUNCE_DELAY)
+          {
+              buttonInterruptFlag = 0;
 
-	    if (buttonInterruptFlag == 1)
-	    {
-	        buttonCheckTime = HAL_GetTick();
+              if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
+              {
+                  pwmBrightness += 25;
 
-	        if ((buttonCheckTime - lastButtonInterruptTime) >= BUTTON_DEBOUNCE_DELAY)
-	        {
-	            buttonInterruptFlag = 0;
+                  if (pwmBrightness > 100)
+                  {
+                      pwmBrightness = 0;
+                  }
 
-	            if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
-	            {
-	                if (ledState == GPIO_PIN_SET)
-	                {
-	                    ledState = GPIO_PIN_RESET;
-	                }
-	                else
-	                {
-	                    ledState = GPIO_PIN_SET;
-	                }
+                  setLedBrightness(pwmBrightness);
+              }
+          }
+      }
 
-	                HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, ledState);
-	            }
-	        }
-	    }
-}
+      /* Non-blocking LED timing */
+      if ((HAL_GetTick() - lastLedToggleTime) >= LED_BLINK_INTERVAL)
+      {
+          lastLedToggleTime = HAL_GetTick();
+
+          HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+      }
+  }
   /* USER CODE END 3 */
 }
 
