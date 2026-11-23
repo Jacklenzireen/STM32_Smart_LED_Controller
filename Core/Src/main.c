@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,21 +41,29 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+
+UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 volatile uint8_t buttonInterruptFlag = 0;
 volatile uint32_t lastButtonInterruptTime = 0;
-
 uint32_t buttonCheckTime = 0;
-
 GPIO_PinState ledState = GPIO_PIN_SET;
-
 #define BUTTON_DEBOUNCE_DELAY 20U
 uint32_t lastLedToggleTime = 0;
 #define LED_BLINK_INTERVAL 500U
 uint8_t pwmBrightness = 25;
+uint32_t adcValue = 0;
+uint32_t adcMillivolts = 0;
+uint32_t lastUartTransmitTime = 0;
+
+#define UART_TRANSMIT_INTERVAL 250U
+
+char uartBuffer[100];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -62,6 +71,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -113,6 +124,8 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
+  MX_ADC1_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, ledState);
 
@@ -125,37 +138,52 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      /* Process button interrupt */
-      if (buttonInterruptFlag == 1)
-      {
-          buttonCheckTime = HAL_GetTick();
+    /* USER CODE END WHILE */
 
-          if ((buttonCheckTime - lastButtonInterruptTime) >= BUTTON_DEBOUNCE_DELAY)
-          {
-              buttonInterruptFlag = 0;
+    /* USER CODE BEGIN 3 */
+	  if (buttonInterruptFlag == 1)
+	  {
+	      buttonCheckTime = HAL_GetTick();
 
-              if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
-              {
-                  pwmBrightness += 25;
+	      if ((buttonCheckTime - lastButtonInterruptTime) >= BUTTON_DEBOUNCE_DELAY)
+	      {
+	          buttonInterruptFlag = 0;
 
-                  if (pwmBrightness > 100)
-                  {
-                      pwmBrightness = 0;
-                  }
+	          if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
+	          {
+	              pwmBrightness += 25;
 
-                  setLedBrightness(pwmBrightness);
-              }
-          }
-      }
+	              if (pwmBrightness > 100)
+	              {
+	                  pwmBrightness = 0;
+	              }
 
-      /* Non-blocking LED timing */
-      if ((HAL_GetTick() - lastLedToggleTime) >= LED_BLINK_INTERVAL)
-      {
-          lastLedToggleTime = HAL_GetTick();
+	              setLedBrightness(pwmBrightness);
+	          }
+	      }
+	  }
+	  HAL_ADC_Start(&hadc1);
+	  if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
+	      {
+	          adcValue = HAL_ADC_GetValue(&hadc1);
 
-          HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-      }
-  }
+	          adcMillivolts = (adcValue * 3300U) / 4095U;
+
+	          if ((HAL_GetTick() - lastUartTransmitTime) >= UART_TRANSMIT_INTERVAL)
+	          {
+	              lastUartTransmitTime = HAL_GetTick();
+
+	              snprintf(uartBuffer, sizeof(uartBuffer),
+	                       "ADC Value: %lu | Voltage: %lu.%03lu V\r\n",
+	                       (unsigned long)adcValue,
+	                       (unsigned long)(adcMillivolts / 1000U),
+	                       (unsigned long)(adcMillivolts % 1000U));
+
+	              HAL_UART_Transmit(&huart1, (uint8_t *)uartBuffer,
+	                                strlen(uartBuffer), HAL_MAX_DELAY);
+	          }
+	      }
+	  }
   /* USER CODE END 3 */
 }
 
@@ -167,6 +195,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -174,7 +203,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -184,15 +215,68 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV4;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_55CYCLES_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -300,6 +384,39 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -346,6 +463,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     if (htim->Instance == TIM2)
     {
         HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+    }
+}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == GPIO_PIN_0)
+    {
+        lastButtonInterruptTime = HAL_GetTick();
+        buttonInterruptFlag = 1;
     }
 }
 /* USER CODE END 4 */
