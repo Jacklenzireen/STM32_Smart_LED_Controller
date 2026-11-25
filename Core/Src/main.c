@@ -43,6 +43,8 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+I2C_HandleTypeDef hi2c1;
+
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
@@ -73,8 +75,9 @@ static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
-
+static void I2C_Scan(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -126,12 +129,14 @@ int main(void)
   MX_TIM3_Init();
   MX_ADC1_Init();
   MX_USART1_UART_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, ledState);
 
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   setLedBrightness(25);
+  I2C_Scan();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -276,6 +281,40 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
 
 }
 
@@ -431,6 +470,7 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
@@ -471,6 +511,44 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     {
         lastButtonInterruptTime = HAL_GetTick();
         buttonInterruptFlag = 1;
+    }
+}
+static void I2C_Scan(void)
+{
+    uint8_t address;
+    uint8_t deviceFound = 0;
+
+    snprintf(uartBuffer, sizeof(uartBuffer),
+             "Starting I2C scan...\r\n");
+
+    HAL_UART_Transmit(&huart1, (uint8_t *)uartBuffer,
+                      strlen(uartBuffer), HAL_MAX_DELAY);
+
+    for (address = 0x08; address <= 0x77; address++)
+    {
+        if (HAL_I2C_IsDeviceReady(&hi2c1,
+                                  (uint16_t)(address << 1),
+                                  2,
+                                  10) == HAL_OK)
+        {
+            deviceFound = 1;
+
+            snprintf(uartBuffer, sizeof(uartBuffer),
+                     "I2C device found at address: 0x%02X\r\n",
+                     (unsigned int)address);
+
+            HAL_UART_Transmit(&huart1, (uint8_t *)uartBuffer,
+                              strlen(uartBuffer), HAL_MAX_DELAY);
+        }
+    }
+
+    if (deviceFound == 0)
+    {
+        snprintf(uartBuffer, sizeof(uartBuffer),
+                 "No I2C devices found.\r\n");
+
+        HAL_UART_Transmit(&huart1, (uint8_t *)uartBuffer,
+                          strlen(uartBuffer), HAL_MAX_DELAY);
     }
 }
 /* USER CODE END 4 */
