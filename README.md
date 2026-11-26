@@ -1,25 +1,23 @@
- Lesson 3.3 – SPI Communication
+Lesson 3.2 – I²C Communication and Device Scanner
 
-Implemented SPI communication using the STM32F103C8T6 Blue Pill and STM32 HAL.
+Objective: Configure the STM32F103C8T6 to communicate with external I²C devices and scan the I²C bus for connected devices.
 
-SPI Configuration:
-- SPI1 configured as Full-Duplex Master.
-- PA5 – SPI1_SCK (Clock).
-- PA6 – SPI1_MISO (Master In Slave Out).
-- PA7 – SPI1_MOSI (Master Out Slave In).
-- PA4 – Manual Chip Select (CS).
-- 8-bit data size, MSB first.
-- Clock polarity: Low.
-- Clock phase: First Edge.
-- SPI clock frequency: 4.5 MHz.
+Configuration:
+- Peripheral: I2C1
+- SCL: PB6
+- SDA: PB7
+- Communication speed: 100 kHz
+- Addressing mode: 7-bit
+- UART output: USART1 (115200 baud)
 
 Implementation:
-- Initialized SPI1 using `MX_SPI1_Init()`.
-- Configured PA4 as a manual Chip Select output.
-- Set CS HIGH when the SPI device is not selected.
-- Set CS LOW before transmission and HIGH after transmission.
-- Used `HAL_SPI_Transmit()` to transmit four test bytes: `0xA5`, `0x5A`, `0x01`, and `0x02`.
-- Scheduled transmissions every second using `HAL_GetTick()` without using `HAL_Delay()`.
+- Configured I²C1 using STM32CubeMX.
+- Implemented an I²C device scanner using `HAL_I2C_IsDeviceReady()`.
+- Scanned device addresses from `0x08` to `0x77`.
+- Displayed detected device addresses through UART.
+- Used `snprintf()` and `HAL_UART_Transmit()` for serial reporting.
 
-Validation:
-- Project builds successfully with 0 errors and 0 warnings.
+Build Status: Successful – 0 errors, 0 warnings.
+
+
+Key Learning: Understanding I²C master communication, 7-bit device addressing, device detection, and UART-based debugging.
