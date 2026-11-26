@@ -45,6 +45,8 @@ ADC_HandleTypeDef hadc1;
 
 I2C_HandleTypeDef hi2c1;
 
+SPI_HandleTypeDef hspi1;
+
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
@@ -62,10 +64,11 @@ uint8_t pwmBrightness = 25;
 uint32_t adcValue = 0;
 uint32_t adcMillivolts = 0;
 uint32_t lastUartTransmitTime = 0;
-
 #define UART_TRANSMIT_INTERVAL 250U
-
 char uartBuffer[100];
+uint8_t spiData[] = {0xA5, 0x5A, 0x01, 0x02};
+uint32_t lastSpiTransmitTime = 0;
+#define SPI_TRANSMIT_INTERVAL 1000U
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,8 +79,10 @@ static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 static void I2C_Scan(void);
+static void ScanI2CDevices(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -130,6 +135,7 @@ int main(void)
   MX_ADC1_Init();
   MX_USART1_UART_Init();
   MX_I2C1_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, ledState);
 
@@ -137,6 +143,8 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   setLedBrightness(25);
   I2C_Scan();
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+  ScanI2CDevices();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -146,6 +154,17 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  /* Non-blocking SPI transmission */
+	  if ((HAL_GetTick() - lastSpiTransmitTime) >= SPI_TRANSMIT_INTERVAL)
+	  {
+	      lastSpiTransmitTime = HAL_GetTick();
+
+	      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+
+	      HAL_SPI_Transmit(&hspi1, spiData, sizeof(spiData), HAL_MAX_DELAY);
+
+	      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+	  }
 	  if (buttonInterruptFlag == 1)
 	  {
 	      buttonCheckTime = HAL_GetTick();
@@ -319,6 +338,44 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
   * @brief TIM2 Initialization Function
   * @param None
   * @retval None
@@ -475,6 +532,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -486,6 +546,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
@@ -543,6 +610,42 @@ static void I2C_Scan(void)
     }
 
     if (deviceFound == 0)
+    {
+        snprintf(uartBuffer, sizeof(uartBuffer),
+                 "No I2C devices found.\r\n");
+
+        HAL_UART_Transmit(&huart1, (uint8_t *)uartBuffer,
+                          strlen(uartBuffer), HAL_MAX_DELAY);
+    }
+}
+static void ScanI2CDevices(void)
+{
+    uint8_t found = 0;
+
+    snprintf(uartBuffer, sizeof(uartBuffer),
+             "Starting I2C scan...\r\n");
+
+    HAL_UART_Transmit(&huart1, (uint8_t *)uartBuffer,
+                      strlen(uartBuffer), HAL_MAX_DELAY);
+
+    for (uint8_t address = 0x08; address <= 0x77; address++)
+    {
+        if (HAL_I2C_IsDeviceReady(&hi2c1,
+                                  (uint16_t)(address << 1),
+                                  2, 10) == HAL_OK)
+        {
+            found = 1;
+
+            snprintf(uartBuffer, sizeof(uartBuffer),
+                     "I2C device found at address: 0x%02X\r\n",
+                     address);
+
+            HAL_UART_Transmit(&huart1, (uint8_t *)uartBuffer,
+                              strlen(uartBuffer), HAL_MAX_DELAY);
+        }
+    }
+
+    if (found == 0)
     {
         snprintf(uartBuffer, sizeof(uartBuffer),
                  "No I2C devices found.\r\n");
